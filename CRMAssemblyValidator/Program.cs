@@ -7,6 +7,7 @@ using System.IO;
 using System.Activities;
 using System.Reflection;
 using Microsoft.Xrm.Sdk.Workflow;
+using Microsoft.Xrm.Sdk;
 
 namespace CRMAssemblyValidator
 {
@@ -22,37 +23,64 @@ namespace CRMAssemblyValidator
                     List<string> problems = new List<string>();
                     Assembly assembly = Assembly.LoadFrom(Path.GetFullPath(path));
                     Console.WriteLine("Scanning " + assembly.GetName().Name);
-                    foreach (Type assemblyType in assembly.ExportedTypes)
-                    {
-                        if (assemblyType.BaseType == typeof(CodeActivity))
-                        {
-                            foreach (PropertyInfo propertyInfo in assemblyType.GetProperties())
-                            {
-                                if (propertyInfo.PropertyType.BaseType == typeof(InArgument) && !propertyInfo.GetCustomAttributes(typeof(InputAttribute)).Any())
-                                {
-                                    problems.Add($"Plugin {assemblyType.FullName} InArgument {propertyInfo.Name} is missing an Input attribute");
-                                }
-                                else if (propertyInfo.PropertyType.BaseType == typeof(OutArgument) && !propertyInfo.GetCustomAttributes(typeof(OutputAttribute)).Any())
-                                {
-                                    problems.Add($"Plugin {assemblyType.FullName} OutArgument {propertyInfo.Name} is missing an Output attribute");
-                                }
-                            }
-                        }
-                    }
+
+                    problems.AddRange(CheckInputAndOutputAttributes(assembly));
+                    problems.AddRange(CheckEntityReferenceHasTargets(assembly));
 
                     foreach (string line in problems)
                     {
                         Console.WriteLine(line);
                     }
 
-
                     if (problems.Count > 0)
                     {
                         Environment.Exit(1);
                     }
-
                 }
             }
+        }
+        public static List<string> CheckInputAndOutputAttributes(Assembly input)
+        {
+            List<string> problems = new List<string>();
+            foreach (Type assemblyType in input.ExportedTypes)
+            {
+                if (assemblyType.BaseType == typeof(CodeActivity))
+                {
+                    foreach (PropertyInfo propertyInfo in assemblyType.GetProperties())
+                    {
+                        if (propertyInfo.PropertyType.BaseType == typeof(InArgument) && !propertyInfo.GetCustomAttributes(typeof(InputAttribute)).Any())
+                        {
+                            problems.Add($"Plugin {assemblyType.FullName} InArgument {propertyInfo.Name} is missing an Input attribute");
+                        }
+                        else if (propertyInfo.PropertyType.BaseType == typeof(OutArgument) && !propertyInfo.GetCustomAttributes(typeof(OutputAttribute)).Any())
+                        {
+                            problems.Add($"Plugin {assemblyType.FullName} OutArgument {propertyInfo.Name} is missing an Output attribute");
+                        }
+                    }
+                }
+            }
+            return problems;
+        }
+
+        public static List<string> CheckEntityReferenceHasTargets(Assembly input)
+        {
+            List<string> problems = new List<string>();
+            foreach (Type assemblyType in input.ExportedTypes)
+            {
+                if (assemblyType.BaseType == typeof(CodeActivity))
+                {
+                    foreach (PropertyInfo propertyInfo in assemblyType.GetProperties())
+                    {
+                        if ((propertyInfo.PropertyType == typeof(InArgument<EntityReference>) 
+                            ||  propertyInfo.PropertyType == typeof(OutArgument<EntityReference>)) 
+                            && !propertyInfo.GetCustomAttributes(typeof(ReferenceTargetAttribute)).Any())
+                        {
+                            problems.Add($"Plugin {assemblyType.FullName} property {propertyInfo.Name} is an entity reference but is missing a reference target");
+                        }
+                    }
+                }
+            }
+            return problems;
         }
     }
 }
