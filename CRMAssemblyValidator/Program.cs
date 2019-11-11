@@ -41,6 +41,21 @@ namespace CRMAssemblyValidator
         }
         public static List<string> CheckInputAndOutputAttributes(Assembly input)
         {
+            Type[] allowedArgumentTypes =
+            {
+                typeof(string),
+                typeof(int),
+                typeof(EntityReference),
+                typeof(double),
+                typeof(float),
+                typeof(bool),
+                typeof(Money),
+                typeof(DateTime),
+            };
+            Type inArgumentType = typeof(InArgument);
+            Type outArgumentType = typeof(OutArgument);
+            Type inputAttributeType = typeof(InputAttribute);
+            Type outputAttributeType = typeof(OutputAttribute);
             List<string> problems = new List<string>();
             foreach (Type assemblyType in input.ExportedTypes)
             {
@@ -48,13 +63,21 @@ namespace CRMAssemblyValidator
                 {
                     foreach (PropertyInfo propertyInfo in assemblyType.GetProperties())
                     {
-                        if (propertyInfo.PropertyType.BaseType == typeof(InArgument) && !propertyInfo.GetCustomAttributes(typeof(InputAttribute)).Any())
+                        if (propertyInfo.PropertyType.BaseType == inArgumentType && !propertyInfo.GetCustomAttributes(inputAttributeType).Any())
                         {
                             problems.Add($"Plugin {assemblyType.FullName} InArgument {propertyInfo.Name} is missing an Input attribute");
                         }
-                        else if (propertyInfo.PropertyType.BaseType == typeof(OutArgument) && !propertyInfo.GetCustomAttributes(typeof(OutputAttribute)).Any())
+                        else if (propertyInfo.PropertyType.BaseType == outArgumentType && !propertyInfo.GetCustomAttributes(outputAttributeType).Any())
                         {
                             problems.Add($"Plugin {assemblyType.FullName} OutArgument {propertyInfo.Name} is missing an Output attribute");
+                        }
+
+                        if (propertyInfo.PropertyType.BaseType == inArgumentType || propertyInfo.PropertyType.BaseType == outArgumentType)
+                        {
+                            if (!allowedArgumentTypes.Contains(propertyInfo.PropertyType.GenericTypeArguments[0]))
+                            {
+                                problems.Add($"Plugin {assemblyType.FullName} Argument {propertyInfo.Name} has an unsupported type of {propertyInfo.PropertyType.GenericTypeArguments[0].Name}");
+                            }
                         }
                     }
                 }
