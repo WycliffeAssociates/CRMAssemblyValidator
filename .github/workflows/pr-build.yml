@@ -28,4 +28,4 @@ jobs:
         run: |
           msbuild CRMAssemblyValidator.sln `
             /p:Configuration=Release `
-            /p:Platform=AnyCPU
+            /p:Platform="Any CPU"
