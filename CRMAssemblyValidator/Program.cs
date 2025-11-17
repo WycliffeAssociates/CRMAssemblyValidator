@@ -26,6 +26,7 @@ namespace CRMAssemblyValidator
 
                     problems.AddRange(CheckInputAndOutputAttributes(assembly));
                     problems.AddRange(CheckEntityReferenceHasTargets(assembly));
+                    problems.AddRange(CheckArgumentTypes(assembly));
 
                     foreach (string line in problems)
                     {
@@ -76,6 +77,62 @@ namespace CRMAssemblyValidator
                             && !propertyInfo.GetCustomAttributes(typeof(ReferenceTargetAttribute)).Any())
                         {
                             problems.Add($"Plugin {assemblyType.FullName} property {propertyInfo.Name} is an entity reference but is missing a reference target");
+                        }
+                    }
+                }
+            }
+            return problems;
+        }
+
+        public static List<string> CheckArgumentTypes(Assembly input)
+        {
+            var problems = new List<string>();
+            
+            // Valid types for InArgument and OutArgument
+            var validTypes = new Type[]
+            {
+                typeof(bool),
+                typeof(DateTime),
+                typeof(decimal),
+                typeof(double),
+                typeof(EntityReference),
+                typeof(int),
+                typeof(Money),
+                typeof(OptionSetValue),
+                typeof(string)
+            };
+
+            foreach (var assemblyType in input.ExportedTypes)
+            {
+                if (assemblyType.BaseType == typeof(CodeActivity))
+                {
+                    foreach (var propertyInfo in assemblyType.GetProperties())
+                    {
+                        var propertyType = propertyInfo.PropertyType;
+                        
+                        // Check if it's an InArgument or OutArgument
+                        if (!propertyType.IsGenericType)
+                        {
+                            continue;
+                        }
+                        var baseType = propertyType.GetGenericTypeDefinition();
+                        if (baseType != typeof(InArgument<>) && baseType != typeof(OutArgument<>))
+                        {
+                            continue;
+                        }
+                        // Get the generic type argument
+                        var genericArgs = propertyType.GetGenericArguments();
+                        if (genericArgs.Length != 1)
+                        {
+                            continue;
+                        }
+                        var argumentType = genericArgs[0];
+                                    
+                        // Check if the argument type is valid
+                        if (!validTypes.Contains(argumentType))
+                        {
+                            var argumentKind = baseType == typeof(InArgument<>) ? "InArgument" : "OutArgument";
+                            problems.Add($"Plugin {assemblyType.FullName} {argumentKind} {propertyInfo.Name} has invalid type {argumentType.Name}. Valid types are: bool, DateTime, Decimal, Double, EntityReference, int, Money, OptionSetValue, string");
                         }
                     }
                 }
