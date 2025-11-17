@@ -86,10 +86,10 @@ namespace CRMAssemblyValidator
 
         public static List<string> CheckArgumentTypes(Assembly input)
         {
-            List<string> problems = new List<string>();
+            var problems = new List<string>();
             
             // Valid types for InArgument and OutArgument
-            Type[] validTypes = new Type[]
+            var validTypes = new Type[]
             {
                 typeof(bool),
                 typeof(DateTime),
@@ -102,34 +102,37 @@ namespace CRMAssemblyValidator
                 typeof(string)
             };
 
-            foreach (Type assemblyType in input.ExportedTypes)
+            foreach (var assemblyType in input.ExportedTypes)
             {
                 if (assemblyType.BaseType == typeof(CodeActivity))
                 {
-                    foreach (PropertyInfo propertyInfo in assemblyType.GetProperties())
+                    foreach (var propertyInfo in assemblyType.GetProperties())
                     {
-                        Type propertyType = propertyInfo.PropertyType;
+                        var propertyType = propertyInfo.PropertyType;
                         
                         // Check if it's an InArgument or OutArgument
-                        if (propertyType.IsGenericType)
+                        if (!propertyType.IsGenericType)
                         {
-                            Type baseType = propertyType.GetGenericTypeDefinition();
-                            if (baseType == typeof(InArgument<>) || baseType == typeof(OutArgument<>))
-                            {
-                                // Get the generic type argument
-                                Type[] genericArgs = propertyType.GetGenericArguments();
-                                if (genericArgs.Length == 1)
-                                {
-                                    Type argumentType = genericArgs[0];
+                            continue;
+                        }
+                        var baseType = propertyType.GetGenericTypeDefinition();
+                        if (baseType != typeof(InArgument<>) && baseType != typeof(OutArgument<>))
+                        {
+                            continue;
+                        }
+                        // Get the generic type argument
+                        var genericArgs = propertyType.GetGenericArguments();
+                        if (genericArgs.Length != 1)
+                        {
+                            continue;
+                        }
+                        var argumentType = genericArgs[0];
                                     
-                                    // Check if the argument type is valid
-                                    if (!validTypes.Contains(argumentType))
-                                    {
-                                        string argumentKind = baseType == typeof(InArgument<>) ? "InArgument" : "OutArgument";
-                                        problems.Add($"Plugin {assemblyType.FullName} {argumentKind} {propertyInfo.Name} has invalid type {argumentType.Name}. Valid types are: bool, DateTime, Decimal, Double, EntityReference, int, Money, OptionSetValue, string");
-                                    }
-                                }
-                            }
+                        // Check if the argument type is valid
+                        if (!validTypes.Contains(argumentType))
+                        {
+                            var argumentKind = baseType == typeof(InArgument<>) ? "InArgument" : "OutArgument";
+                            problems.Add($"Plugin {assemblyType.FullName} {argumentKind} {propertyInfo.Name} has invalid type {argumentType.Name}. Valid types are: bool, DateTime, Decimal, Double, EntityReference, int, Money, OptionSetValue, string");
                         }
                     }
                 }
